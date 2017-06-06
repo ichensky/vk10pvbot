@@ -1,0 +1,6 @@
+{
+    "app_id"      :     00000000,
+    "email"       :    "***@***",
+    "password"    :    "******",
+    "chatname"    :    "10 povodov"
+}
