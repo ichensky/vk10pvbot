@@ -81,6 +81,8 @@ namespace vk10pvbot
         public long userid { get; set; }
         public string nick { get; set; }
         public int id { get; set; }
+        public string firstname { get; internal set; }
+        public string lastname { get; internal set; }
     }
     public class player_answer
     {
@@ -375,7 +377,7 @@ namespace vk10pvbot
                 var model = vk.Utils.ResolveScreenName(screenname);
                 if (model.Type == VkNet.Enums.VkObjectType.User)
                 {
-                    return vk.Users.Get(model.Id.Value);
+                    return user(model.Id.Value);
                 }
             }
             catch (Exception)
@@ -383,7 +385,17 @@ namespace vk10pvbot
             }
             return null;
         }
-
+        public VkNet.Model.User user(long id)
+        {
+            try
+            {
+                return vk.Users.Get(id);
+            }
+            catch (Exception)
+            {
+            }
+            return null;
+        }
         public void send_message(string message, long userid)
         {
             vk.Messages.Send(new VkNet.Model.RequestParams.MessagesSendParams()
@@ -402,7 +414,7 @@ namespace vk10pvbot
         }
 
     }
-
+    
     public class processor_commands
     {
         vk_connector connector;
@@ -523,13 +535,18 @@ namespace vk10pvbot
         public const string first_add_man = "Cначала добавьте жениха.";
         public const string first_add_man_and_players = "Cначала добавьте жениха и невест.";
         public const string player_added = "Вк пользователь(невеста) добавлен успешно.";
-        public const string first_play_round = "Cначала сыграйте раунд.";
+        public const string first_set_answers = "Cначала невесты должны ответить на вопросы жениха.";
         public const string to_play_round = "Используйте комманду:  /round";
+        public const string to_question = "Используйте комманду:  /q тут вопрос";
+        public const string to_answer = "Используйте комманду:  /a тут ответ";
         public const string to_create_players = "Для добавлени невесты исспользуйте комманду: /add nick";
         public const string only_creator_can_use_command = "Только создатель игры может испльзовать эту команду.";
-        public const string only_creator_and_man_can_use_command = "Только создатель игры или игрок(жених) может испльзовать эту команду.";
+        public const string only_creator_or_man_can_use_command = "Только создатель игры или игрок(жених) может испльзовать эту команду.";
+        public const string only_creator_or_man_or_players_can_use_command = "Только создатель игры или игрок(жених) или игроки(невесты) могут испльзовать эту команду.";
         public const string this_is_not_player = "Этот пользователь не учавствует в игре.";
         public const string not_play_in_round = "Этот пользователь не учавствует в раунде.";
+        public const string not_correct_used_of_command = "Комманда исспользуется не верно.";
+        public const string game_not_initialized = "Игра не инициализированна.";
 
         public const string answers_sent_to_man = "Ответы отправлены жениху.";
         public const string round_played = "Раунд сыгран.";
@@ -551,18 +568,21 @@ namespace vk10pvbot
         public const string rose = "/r ";
     }
 
-    public class command_messsage {
+    public class command_messsage
+    {
         public play_game game { get; private set; }
         public VkNet.Model.Message message { get; private set; }
         public vk_connector connector { get; private set; }
         public string str { get; private set; }
         public string body { get; private set; }
         public string command { get; private set; }
-        public command_messsage(vk_connector connector) {
+        public command_messsage(vk_connector connector)
+        {
             this.game = new play_game();
             this.connector = connector;
         }
-        public void init_message(VkNet.Model.Message message) {
+        public void init_message(VkNet.Model.Message message)
+        {
             this.message = message;
             this.str = this.message.Body.Trim();
         }
@@ -570,7 +590,7 @@ namespace vk10pvbot
         public bool check(string command)
         {
             this.command = command;
-            this.body = this.str.Replace(this.command,"");
+            this.body = this.str.Replace(this.command, "");
             return this.str.IndexOf(command) == 0;
         }
         private bool check_only_creator_can_use_command()
@@ -584,15 +604,28 @@ namespace vk10pvbot
         }
         private bool check_only_creator_or_man_can_use_command()
         {
-            var flag = this.message.UserId.Value == connector.vk.UserId.Value || 
+            var flag = this.message.UserId.Value == connector.vk.UserId.Value ||
                 (game.is_man_set() && this.message.UserId.Value == game.game.man.userid);
             if (!flag)
             {
-                log_warning(strs.you_cannot_use_this_command, strs.only_creator_and_man_can_use_command);
+                log_warning(strs.you_cannot_use_this_command, strs.only_creator_or_man_can_use_command);
             }
 
             return flag;
         }
+        private bool check_only_creator_or_man_or_players_can_use_command()
+        {
+            var flag = this.message.UserId.Value == connector.vk.UserId.Value ||
+                (game.is_man_set() && this.message.UserId.Value == game.game.man.userid)
+                || (game.game.players != null && game.game.players.Any(x => x.id == this.message.UserId.Value));
+            if (!flag)
+            {
+                log_warning(strs.you_cannot_use_this_command, strs.only_creator_or_man_or_players_can_use_command);
+            }
+
+            return flag;
+        }
+
         private void log_warning(string error, string note)
         {
             log.warning_command(this.str, error, note);
@@ -608,7 +641,7 @@ namespace vk10pvbot
             {
                 this.game = new play_game();
                 this.game.new_game();
-                log_info( strs.new_game_created);
+                log_info(strs.new_game_created);
             }
         }
         public void stop_game()
@@ -637,11 +670,11 @@ namespace vk10pvbot
 
                 if (user == null)
                 {
-                    log_warning( strs.vk_person_do_not_presetn, strs.to_create_man);
+                    log_warning(strs.vk_person_do_not_presetn, strs.to_create_man);
                     return;
                 }
 
-                game.add_man(new player { userid = user.Id });
+                game.add_man(new player { userid = user.Id, firstname = user.FirstName, lastname = user.LastName });
                 log_info($"{strs.man_added} [{user.Id}, {user.FirstName} {user.LastName}]");
             }
         }
@@ -653,8 +686,15 @@ namespace vk10pvbot
                 return;
             }
 
-            game.add_player(new player { userid = message.UserId.Value, nick = this.body });
-            log_info($"{strs.players_added} [{message.UserId.Value}, {this.body}]");
+            var player = connector.user(message.UserId.Value);
+            var nick = this.body;
+            if (string.IsNullOrEmpty(nick))
+            {
+                nick = $"{player.FirstName} {player.LastName}";
+            }
+
+            game.add_player(new player { userid = player.Id, nick = this.body, firstname = player.FirstName, lastname = player.LastName });
+            log_info($"{strs.players_added} [{player.Id}, {nick}, {player.FirstName} {player.LastName}]");
         }
 
         public void players()
@@ -683,7 +723,7 @@ namespace vk10pvbot
             {
                 if (game.status != play_game.statuses.answers_set)
                 {
-                    log_warning($"{strs.you_cannot_use_this_command} {strs.first_play_round}", strs.to_play_round);
+                    log_warning($"{strs.you_cannot_use_this_command} {strs.first_players_should_answer_to_question}", $"{strs.to_question} {strs.to_answer}");
                     return;
                 }
 
@@ -754,13 +794,14 @@ namespace vk10pvbot
             kill_rose(x => game.rose(x));
         }
 
-        private void kill_rose(Action<List<int>> action) {
+        private void kill_rose(Action<List<int>> action)
+        {
             if (check_only_creator_or_man_can_use_command())
             {
                 var ids = new Regex("[ ]{2,}", RegexOptions.None).Replace(this.body, " ").Split(' ');
                 if (ids == null || ids.Length == 0)
                 {
-                    log_warning("Комманда исспользуется не верно.", command + " 1 2 3 4 5");
+                    log_warning(strs.not_correct_used_of_command, command + " 1 2 3 4 5");
                     return;
                 }
                 var list = new List<int>();
@@ -769,7 +810,7 @@ namespace vk10pvbot
                     int id;
                     if (!int.TryParse(item, out id))
                     {
-                        log_warning("Комманда исспользуется не верно.", command + " 1 2 3 4 5");
+                        log_warning(strs.not_correct_used_of_command, command + " 1 2 3 4 5");
                         return;
                     }
                     list.Add(id);
@@ -778,17 +819,162 @@ namespace vk10pvbot
                 {
                     action.Invoke(list);
                     var sb = new StringBuilder("Игрокам выставлен статус." + $" {command}. ");
-                    foreach  (var item in list)
+                    foreach (var item in list)
                     {
-                        sb.Append(item.ToString()+" ");
+                        sb.Append(item.ToString() + " ");
                     }
                     log_info(sb.ToString());
                 }
             }
         }
+
+        public void status()
+        {
+            if (check_only_creator_or_man_or_players_can_use_command())
+            {
+                log_info(game.status.ToString());
+                if (this.game.game.man != null && this.message.UserId == this.game.game.man.id)
+                {
+                    return;
+                }
+
+                var sb = new StringBuilder();
+                if (game.status == play_game.statuses.none)
+                {
+                    sb.AppendLine(strs.game_not_initialized);
+                }
+                else {
+                    print_winner(sb);
+                    print_man(sb);
+                    print_players(sb);
+                    print_pas(sb);
+                    print_q(sb);
+                }
+            
+                if (this.message.ChatId == null)
+                {
+                    this.connector.send_message(sb.ToString(), this.message.UserId.Value);
+                }
+                else
+                {
+                    this.connector.send_chat_message(sb.ToString());
+                }
+            }
+        }
+        private void print_man(StringBuilder sb)
+        {
+            if (this.game.status== play_game.statuses.answers_set 
+                || this.game.status == play_game.statuses.man_set
+                || this.game.status == play_game.statuses.new_round
+                || this.game.status == play_game.statuses.played
+                || this.game.status == play_game.statuses.question_set
+                )
+            {
+                
+            }
+            var man = game.game.man;
+            var s = @"¯\_(ツ)_/¯ . ";
+            if (man == null)
+            {
+                sb.AppendLine(s + "??");
+            }
+            else if (game.game.winner != null ||
+                (this.message.ChatId == null && this.message.UserId.Value == this.connector.vk.UserId))
+            {
+                sb.AppendLine($"{s}[{man.firstname} {man.lastname}] https://vk.com/id{man.userid}");
+            }
+            else
+            {
+                sb.AppendLine(s + "+");
+            }
+        }
+        private void print_winner(StringBuilder sb)
+        {
+            if (this.game.status == play_game.statuses.played)
+            {
+                var s = "♥ ";
+                if (game.game.winner != null)
+                {
+                    sb.AppendLine(s + game.game.winner.nick);
+                }
+                else
+                {
+                    sb.AppendLine(s + ".. упс, победителей нет ??.");
+                }
+            }
+
+        }
+        private void print_players(StringBuilder sb)
+        {
+            if (this.game.status == play_game.statuses.man_set)
+            {
+                if (this.game.game.players.Count == 0)
+                {
+                    sb.AppendLine(@"ｵｵｵｵｫｫｫｫｫｫｫ . ??");
+                }
+                else
+                {
+                    sb.AppendLine(@"ｵｵｵｵｫｫｫｫｫｫｫ . ");
+
+                    foreach (var item in this.game.game.players)
+                    {
+                        sb.Append(item.id + ". " + item.nick);
+                    }
+                }
+            }
+        }
+        private void print_pas(StringBuilder sb)
+        {
+            if (this.game.status == play_game.statuses.answers_set
+              || this.game.status == play_game.statuses.new_round
+              || this.game.status == play_game.statuses.question_set
+              )
+            {
+                if (this.game.game.round.players_answers.Count == 0)
+                {
+                    sb.AppendLine(@"ｵｵｵｵｫｫｫｫｫｫｫ . ??");
+                }
+                else
+                {
+                    sb.AppendLine(@"ｵｵｵｵｫｫｫｫｫｫｫ . ");
+
+                    foreach (var item in this.game.game.round.players_answers)
+                    {
+                        var kr = "";
+                        if (this.game.game.round.rose.Any(x=>x.userid==item.player.userid))
+                        {
+                            kr = "🌹";
+                        }
+                        if (this.game.game.round.kill.Any(x => x.userid == item.player.userid))
+                        {
+                            kr = "🔪";
+                        }
+                        sb.Append(item.player.id + ". " + item.player.nick + " "+ kr);
+                    }
+                }
+            }
+        }
+        private void print_q(StringBuilder sb)
+        {
+            if (this.game.status == play_game.statuses.answers_set
+              || this.game.status == play_game.statuses.question_set
+              )
+            {
+                var s = "Вопрос . ";
+                if (string.IsNullOrEmpty(this.game.game.round.question))
+                {
+                    sb.AppendLine(s+"??");
+                }
+                else
+                {
+                    sb.AppendLine(s+this.game.game.round.question);
+                }
+
+            }
+        }
     }
 
-    public class processor {
+        public class processor {
 
         vk_connector connector;
         public processor(vk_connector connector) {
