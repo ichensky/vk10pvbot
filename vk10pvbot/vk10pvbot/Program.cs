@@ -563,9 +563,10 @@ namespace vk10pvbot
         public const string round = "/round";
         public const string q = "/q ";
         public const string a = "/a ";
-        public const string send_answers_to_man = "/s ";
-        public const string kill = "/k ";
-        public const string rose = "/r ";
+        public const string send_answers_to_man = "/sent";
+        public const string kill = "/kill ";
+        public const string rose = "/rose ";
+        public const string status = "/status";
     }
 
     public class command_messsage
@@ -741,12 +742,22 @@ namespace vk10pvbot
         {
             if (check_only_creator_or_man_can_use_command())
             {
+                if (this.game.status != play_game.statuses.new_round)
+                {
+                    log_warning(strs.you_cannot_use_this_command, "Сначала /players /round");
+                    return;
+                }
                 game.add_question(this.body);
                 log_info($"{strs.question_added} {this.body}");
             }
         }
         public void add_answer()
         {
+            if (this.game.status != play_game.statuses.question_set && this.game.status != play_game.statuses.answers_set)
+            {
+                log_warning(strs.you_cannot_use_this_command, "Сначала /q /a");
+                return;
+            }
             var player = game.player(this.message.UserId);
             if (player == null)
             {
@@ -798,6 +809,11 @@ namespace vk10pvbot
         {
             if (check_only_creator_or_man_can_use_command())
             {
+                if (this.game.status != play_game.statuses.answers_set)
+                {
+                    log_warning(strs.you_cannot_use_this_command, "Сначала /a");
+                    return;
+                }
                 var ids = new Regex("[ ]{2,}", RegexOptions.None).Replace(this.body, " ").Split(' ');
                 if (ids == null || ids.Length == 0)
                 {
@@ -833,7 +849,7 @@ namespace vk10pvbot
             if (check_only_creator_or_man_or_players_can_use_command())
             {
                 log_info(game.status.ToString());
-                if (this.game.game.man != null && this.message.UserId == this.game.game.man.id)
+                if (this.game.game!=null&&this.game.game.man != null && this.message.UserId == this.game.game.man.id)
                 {
                     return;
                 }
@@ -910,16 +926,15 @@ namespace vk10pvbot
             {
                 if (this.game.game.players.Count == 0)
                 {
-                    sb.AppendLine(@"ｵｵｵｵｫｫｫｫｫｫｫ . ??");
+                    sb.AppendLine(@"ｫｫｫ . ??");
                 }
                 else
                 {
-                    sb.AppendLine(@"ｵｵｵｵｫｫｫｫｫｫｫ . ");
-
                     foreach (var item in this.game.game.players)
                     {
-                        sb.Append(item.id + ". " + item.nick);
+                        sb.AppendLine(item.id + ". " + item.nick);
                     }
+
                 }
             }
         }
@@ -932,31 +947,46 @@ namespace vk10pvbot
             {
                 if (this.game.game.round.players_answers.Count == 0)
                 {
-                    sb.AppendLine(@"ｵｵｵｵｫｫｫｫｫｫｫ . ??");
+                    sb.AppendLine(@"ｫｫｫ . ??");
                 }
                 else
                 {
-                    sb.AppendLine(@"ｵｵｵｵｫｫｫｫｫｫｫ . ");
-
-                    foreach (var item in this.game.game.round.players_answers)
+                    if (this.game.status == play_game.statuses.new_round)
                     {
-                        var kr = "";
-                        if (this.game.game.round.rose.Any(x=>x.userid==item.player.userid))
+                        foreach (var item in this.game.game.round.players_answers)
                         {
-                            kr = "🌹";
+                            var kr = "";
+                            if (this.game.game.round.rose != null && this.game.game.round.rose.Any(x => x.userid == item.player.userid))
+                            {
+                                kr = "🌹";
+                            }
+                            if (this.game.game.round.kill != null && this.game.game.round.kill.Any(x => x.userid == item.player.userid))
+                            {
+                                kr = "🔪";
+                            }
+                            sb.AppendLine(item.player.id + ". " + item.player.nick + " " + kr);
                         }
-                        if (this.game.game.round.kill.Any(x => x.userid == item.player.userid))
-                        {
-                            kr = "🔪";
-                        }
-                        sb.Append(item.player.id + ". " + item.player.nick + " "+ kr);
                     }
+                    else
+                    {
+                        foreach (var item in this.game.game.round.players_answers)
+                        {
+                            var kr = "";
+                            if (!string.IsNullOrEmpty(item.answer))
+                            {
+                                kr = "☆";
+                            }
+                            sb.AppendLine(item.player.id + ". " + item.player.nick + " " + kr);
+                        }
+                    }
+                    
                 }
             }
         }
         private void print_q(StringBuilder sb)
         {
             if (this.game.status == play_game.statuses.answers_set
+              || this.game.status == play_game.statuses.new_round
               || this.game.status == play_game.statuses.question_set
               )
             {
@@ -1039,6 +1069,10 @@ namespace vk10pvbot
                             else if (cm.check(strc.rose))
                             {
                                 cm.rose();
+                            }
+                            else if (cm.check(strc.status))
+                            {
+                                cm.status();
                             }
                         }
                     }
