@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using VkNet;
@@ -110,13 +111,12 @@ namespace vk10pvbot
             new_game = 1,
             man_set = 2,
 
-            round = 3,
-            new_round = 4,
+            new_round = 3,
 
-            question_set = 5,
-            answers_set = 6,
+            question_set = 4,
+            answers_set = 5,
 
-            played = 7,
+            played = 6,
         }
         public statuses status { get; private set; } = statuses.none;
 
@@ -167,7 +167,7 @@ namespace vk10pvbot
                 return false;
             }
             this.game.round.players_answers = this.game.players.Select(x => new player_answer { player = x }).ToList();
-            this.status = statuses.round;
+            this.status = statuses.new_round;
             return true;
         }
 
@@ -183,7 +183,7 @@ namespace vk10pvbot
 
         public bool add_answer(player player, string answer)
         {
-            if (this.status != statuses.question_set || this.status != statuses.answers_set)
+            if (this.status != statuses.question_set && this.status != statuses.answers_set)
             {
                 throw new Exception();
             }
@@ -200,28 +200,39 @@ namespace vk10pvbot
             return false;
         }
 
-        public void add_rose(List<player> players) {
-            if (this.status != statuses.answers_set)
-            {
-                throw new Exception();
-            }
-            this.game.round.rose = players.Select(x => x).ToList();
-
+        public void rose(List<int> ids) {
+            this.game.round.rose = kill_rose(ids);
         }
-        public void add_kill(List<player> players)
+        public void kill(List<int> ids)
         {
-            if (this.status != statuses.answers_set)
-            {
-                throw new Exception();
-            }
-            this.game.round.kill = players.Select(x => x).ToList();
+            this.game.round.kill = kill_rose(ids);
         }
 
-        public void remove_players_who_do_not_answered() {
+        private List<player> kill_rose(List<int> ids) {
             if (this.status != statuses.answers_set)
             {
                 throw new Exception();
             }
+            var list = new List<player>();
+            foreach (var id in ids)
+            {
+                var pa = this.game.round.players_answers.FirstOrDefault(x => x.player.id == id);
+                if (pa != null)
+                {
+                    list.Add(pa.player);
+                }
+            }
+            return list;
+        }
+
+     
+        public bool play_round() {
+            
+            if (this.status != statuses.answers_set)
+            {
+                throw new Exception();
+            }
+
             begin:
             for (int i = 0; i < this.game.round.players_answers.Count; i++)
             {
@@ -231,22 +242,6 @@ namespace vk10pvbot
                     this.game.round.players_answers.RemoveAt(i);
                     goto begin;
                 }
-            }
-        }
-
-        public void round_played() {
-            if (this.game == null || this.game.round == null || this.game.round.kill == null)
-            {
-                throw new Exception();
-            }
-            this.status = statuses.round;
-        }
-
-
-        public bool play_round() {
-            if (this.status != statuses.round)
-            {
-                throw new Exception();
             }
 
             var prev_round = this.game.round;
@@ -537,8 +532,8 @@ namespace vk10pvbot
         public const string not_play_in_round = "Этот пользователь не учавствует в раунде.";
 
         public const string answers_sent_to_man = "Ответы отправлены жениху.";
-        public const string players_inited = "Игроки для раунда иницилизированны, можно добавлять вопрос, ответы.";
-        public const string players_added = "Игроки добалены, можно играть первый раунд.";
+        public const string round_played = "Раунд сыгран.";
+        public const string players_added = "Игроки добалены. Жених может написать свой первый вопрос.";
         public const string question_added = "Вопрос добавлен.";
         public const string answer_added = "Вопрос добавлен.";
     }
@@ -547,25 +542,31 @@ namespace vk10pvbot
         public const string stop = "/stop";
         public const string man = "/man ";
         public const string add = "/add ";
+        public const string players = "/players";
         public const string round = "/round";
         public const string q = "/q ";
         public const string a = "/a ";
-        public const string send_answers_to_man = "/saman ";
+        public const string send_answers_to_man = "/s ";
+        public const string kill = "/k ";
+        public const string rose = "/r ";
     }
 
     public class command_messsage {
-        public play_game game { get; set; }
+        public play_game game { get; private set; }
         public VkNet.Model.Message message { get; private set; }
         public vk_connector connector { get; private set; }
         public string str { get; private set; }
         public string body { get; private set; }
         public string command { get; private set; }
-        public command_messsage(vk_connector connector, play_game game, VkNet.Model.Message message) {
-            this.game = game;
+        public command_messsage(vk_connector connector) {
+            this.game = new play_game();
             this.connector = connector;
-            this.message = message;
-            this.str = message.Body.Trim();
         }
+        public void init_message(VkNet.Model.Message message) {
+            this.message = message;
+            this.str = this.message.Body.Trim();
+        }
+
         public bool check(string command)
         {
             this.command = command;
@@ -579,6 +580,17 @@ namespace vk10pvbot
             {
                 log_warning(strs.you_cannot_use_this_command, strs.only_creator_can_use_command);
             }
+            return flag;
+        }
+        private bool check_only_creator_or_man_can_use_command()
+        {
+            var flag = this.message.UserId.Value == connector.vk.UserId.Value || 
+                (game.is_man_set() && this.message.UserId.Value == game.game.man.userid);
+            if (!flag)
+            {
+                log_warning(strs.you_cannot_use_this_command, strs.only_creator_and_man_can_use_command);
+            }
+
             return flag;
         }
         private void log_warning(string error, string note)
@@ -644,35 +656,35 @@ namespace vk10pvbot
             game.add_player(new player { userid = message.UserId.Value, nick = this.body });
             log_info($"{strs.players_added} [{message.UserId.Value}, {this.body}]");
         }
+
+        public void players()
+        {
+            if (check_only_creator_can_use_command())
+            {
+                if (game.status != play_game.statuses.man_set)
+                {
+                    log_warning($"{strs.you_cannot_use_this_command} {strs.first_add_man}", strs.to_create_man);
+                    return;
+                }
+                if (!game.players_set())
+                {
+                    log_warning($"{strs.you_cannot_use_this_command} {strs.first_add_man_and_players}", $"{strs.to_create_man} {strs.to_create_players}");
+                    return;
+                }
+                else
+                {
+                    log_info(strs.players_added);
+                }
+            }
+        }
         public void round()
         {
             if (check_only_creator_can_use_command())
             {
-                if ((game.status != play_game.statuses.man_set
-                                        && game.status != play_game.statuses.round))
+                if (game.status != play_game.statuses.answers_set)
                 {
-                    if (!game.is_man_set())
-                    {
-                        log_warning( $"{strs.you_cannot_use_this_command} {strs.first_add_man}", strs.to_create_man);
-                    }
-                    else
-                    {
-                        log_warning( $"{strs.you_cannot_use_this_command} {strs.first_play_round}", strs.to_play_round);
-                    }
+                    log_warning($"{strs.you_cannot_use_this_command} {strs.first_play_round}", strs.to_play_round);
                     return;
-                }
-
-                if (game.status == play_game.statuses.man_set)
-                {
-                    if (!game.players_set())
-                    {
-                        log_warning( $"{strs.you_cannot_use_this_command} {strs.first_add_man_and_players}", $"{strs.to_create_man} {strs.to_create_players}");
-                        return;
-                    }
-                    else
-                    {
-                        log_info(strs.players_added);
-                    }
                 }
 
                 if (game.play_round())
@@ -681,20 +693,17 @@ namespace vk10pvbot
                 }
                 else
                 {
-                    log_info(strs.players_inited);
+                    log_info(strs.round_played);
                 }
             }
         }
         public void add_question()
         {
-            if (this.message.UserId.Value != connector.vk.UserId.Value ||
-                                    game.is_man_set() || this.message.UserId.Value != game.game.man.userid)
+            if (check_only_creator_or_man_can_use_command())
             {
-                log_warning(strs.you_cannot_use_this_command, strs.only_creator_and_man_can_use_command);
+                game.add_question(this.body);
+                log_info($"{strs.question_added} {this.body}");
             }
-
-            game.add_question(this.body);
-            log_info($"{strs.question_added} {this.body}");
         }
         public void add_answer()
         {
@@ -735,6 +744,48 @@ namespace vk10pvbot
             }
         }
 
+        public void kill()
+        {
+            kill_rose(x => game.kill(x));
+
+        }
+        public void rose()
+        {
+            kill_rose(x => game.rose(x));
+        }
+
+        private void kill_rose(Action<List<int>> action) {
+            if (check_only_creator_or_man_can_use_command())
+            {
+                var ids = new Regex("[ ]{2,}", RegexOptions.None).Replace(this.body, " ").Split(' ');
+                if (ids == null || ids.Length == 0)
+                {
+                    log_warning("Комманда исспользуется не верно.", command + " 1 2 3 4 5");
+                    return;
+                }
+                var list = new List<int>();
+                foreach (var item in ids)
+                {
+                    int id;
+                    if (!int.TryParse(item, out id))
+                    {
+                        log_warning("Комманда исспользуется не верно.", command + " 1 2 3 4 5");
+                        return;
+                    }
+                    list.Add(id);
+                }
+                if (list.Count > 0)
+                {
+                    action.Invoke(list);
+                    var sb = new StringBuilder("Игрокам выставлен статус." + $" {command}. ");
+                    foreach  (var item in list)
+                    {
+                        sb.Append(item.ToString()+" ");
+                    }
+                    log_info(sb.ToString());
+                }
+            }
+        }
     }
 
     public class processor {
@@ -749,7 +800,7 @@ namespace vk10pvbot
         public void go() {
             var processor_commands = new processor_commands(connector);
 
-            play_game game = new play_game() ;
+            var cm = new command_messsage(connector);
             while (true)
             {
                 try
@@ -759,7 +810,7 @@ namespace vk10pvbot
                     {
                         foreach (var item in commands)
                         {
-                            var cm = new command_messsage(connector,game,item);
+                            cm.init_message(item);
                             if (cm.check(strc.@new))
                             {
                                 cm.new_game();
@@ -774,6 +825,10 @@ namespace vk10pvbot
                             else if (cm.check(strc.add))
                             {
                                 cm.add_player();
+                            }
+                            else if (cm.check(strc.players))
+                            {
+                                cm.players();
                             }
                             else if (cm.check(strc.round))
                             {
@@ -791,13 +846,20 @@ namespace vk10pvbot
                             {
                                 cm.send_answers_to_man();
                             }
-
+                            else if (cm.check(strc.kill))
+                            {
+                                cm.kill();
+                            }
+                            else if (cm.check(strc.rose))
+                            {
+                                cm.rose();
+                            }
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    log.error_command(ex, strs.send_log, game);
+                    log.error_command(ex, strs.send_log, cm);
 
                 }
 
@@ -837,8 +899,6 @@ namespace vk10pvbot
             play.add_player(player9);
             play.players_set();
 
-           flag= play.play_round();
-
             play.add_question("вопрос 1");
             play.add_answer(player1, "1 ответ 1");
             play.add_answer(player2, "2 ответ 1");
@@ -846,10 +906,8 @@ namespace vk10pvbot
             play.add_answer(player4, "4 ответ 1");
             play.add_answer(player5, "5 ответ 1");
 
-            play.add_kill(new List<player>() { player1, player2 });
-            play.add_rose(new List<player>() { player3, player4 });
-            play.remove_players_who_do_not_answered();
-            play.round_played();
+            play.kill(new List<int>() { player1.id, player2.id });
+            play.rose(new List<int>() { player3.id, player4.id });
 
            flag= play.play_round();
 
@@ -858,10 +916,8 @@ namespace vk10pvbot
             play.add_answer(player4, "2 ответ 1");
             play.add_answer(player5, "3 ответ 1");
 
-            play.add_kill(new List<player>() { player3, player4 });
-            play.add_rose(new List<player>() { player5 });
-            play.remove_players_who_do_not_answered();
-            play.round_played();
+            play.kill(new List<int>() { player3.id, player4.id });
+            play.rose(new List<int>() { player5.id });
 
            flag= play.play_round();
         }
