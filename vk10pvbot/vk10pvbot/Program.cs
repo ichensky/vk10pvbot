@@ -39,19 +39,19 @@ namespace vk10pvbot
 
     public static class log {
 
-        internal static void error(string message,string note)
+        internal static void error(string message, string note)
         {
             ConsoleColor currentForeground = Console.ForegroundColor;
             Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine("ERROR|" + message +"|"+note );
+            Console.WriteLine("ERROR|" + message + "|" + note);
             Console.ForegroundColor = currentForeground;
         }
         internal static void error_command(Exception ex, string message, object obj)
         {
             ConsoleColor currentForeground = Console.ForegroundColor;
             Console.ForegroundColor = ConsoleColor.Red;
-            var sz = ex==null?"": JsonConvert.SerializeObject(ex).ToString();
-            var szobj = obj==null?"": JsonConvert.SerializeObject(obj).ToString();
+            var sz = ex == null ? "" : JsonConvert.SerializeObject(ex).ToString();
+            var szobj = obj == null ? "" : JsonConvert.SerializeObject(obj).ToString();
             Console.WriteLine("ERROR|" + message + "|" + szobj + "|" + sz);
             Console.ForegroundColor = currentForeground;
         }
@@ -60,7 +60,7 @@ namespace vk10pvbot
         {
             ConsoleColor currentForeground = Console.ForegroundColor;
             Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine("WARNING|" + command + "|" + message +"|" +note);
+            Console.WriteLine("WARNING|" + command + "|" + message + "|" + note);
             Console.ForegroundColor = currentForeground;
         }
         internal static void info_command(string command, string message)
@@ -130,8 +130,8 @@ namespace vk10pvbot
 
         public void add_man(player player)
         {
-            if (this.status != statuses.new_game 
-                && this.status!= statuses.man_set)
+            if (this.status != statuses.new_game
+                && this.status != statuses.man_set)
             {
                 throw new Exception();
             }
@@ -160,7 +160,7 @@ namespace vk10pvbot
             {
                 throw new Exception();
             }
-            if (this.game.man==null||this.game.players.Count==0)
+            if (this.game.man == null || this.game.players.Count == 0)
             {
                 return false;
             }
@@ -181,7 +181,7 @@ namespace vk10pvbot
 
         public bool add_answer(player player, string answer)
         {
-            if (this.status != statuses.question_set || this.status!= statuses.answers_set)
+            if (this.status != statuses.question_set || this.status != statuses.answers_set)
             {
                 throw new Exception();
             }
@@ -239,7 +239,7 @@ namespace vk10pvbot
             }
             this.status = statuses.round;
         }
-      
+
 
         public bool play_round() {
             if (this.status != statuses.round)
@@ -288,16 +288,16 @@ namespace vk10pvbot
 
         internal bool is_man_set()
         {
-            return game.man!=null;
+            return game.man != null;
         }
 
         internal player player(long? userId)
         {
-            if (this.game.players==null||this.game.players.Count==0)
+            if (this.game.players == null || this.game.players.Count == 0)
             {
                 return null;
             };
-            return this.game.players.FirstOrDefault(x=>x.userid==userId);
+            return this.game.players.FirstOrDefault(x => x.userid == userId);
         }
     }
 
@@ -333,7 +333,7 @@ namespace vk10pvbot
             try
             {
                 var chat = (vk.Messages.SearchDialogs(chat_name)).Chats[0];
-                this.info= new info()
+                this.info = new info()
                 {
                     chat = chat,
                     chat_peerid = get_peer_id(chat.Id),
@@ -342,7 +342,7 @@ namespace vk10pvbot
             }
             catch (Exception ex)
             {
-                return false; 
+                return false;
             }
         }
         private long get_peer_id(long chatid)
@@ -435,7 +435,7 @@ namespace vk10pvbot
             var send_commands = commands(send_messages);
 
             send_commands.AddRange(recived_commands);
-            send_commands.Sort((x, y) => x.Date.Value.Ticks < y.Date.Value.Ticks?0:1);
+            send_commands.Sort((x, y) => x.Date.Value.Ticks < y.Date.Value.Ticks ? 0 : 1);
 
             return send_commands;
         }
@@ -497,6 +497,51 @@ namespace vk10pvbot
         }
 
     }
+    public class strs{
+        public const string file_not_found = "Файл не найден.";
+        public const string how_to_use_app = "Запустите программу из коммандной строки: vk10pvbot \"C:\\path\\to_file.txt\"";
+        public const string check_file_content = "Проверьте правильноcnm содержимого файла.";
+        public const string check_creds = "Не удалоcь залогинится. Проверьте правильность login, password и appid.";
+        public const string chat_not_found = "Чат не найден.";
+
+        public const string send_log = "Проститииииии. Эта ошибка в программе, скопируйте лог файл и скиньте, автору(мне) программы.";
+        public const string new_game_created = "Новая игра coздана успешно.";
+        public const string game_stoped = "Игра закончена успешно.";
+        public const string game_played = "Игра сыграна.";
+        public const string you_cannot_use_this_command = "Вы не можете использовать эту комманду.";
+        public const string create_new_game = "Создайте новую игру.";
+        public const string to_create_new_game = "Для создания новой игры исспользуте комманду: /new";
+        public const string first_players_should_answer_to_question = "Сначала невесты должны ответить на вопрос жениха.";
+        public const string vk_person_do_not_presetn = "Такой вк пользователь не существует.";
+        public const string to_create_man = "Используйте комманду:  /man https://vk.com/idxxx";
+        public const string man_added = "Вк пользователь(жених) добавлен успешно.";
+        public const string first_add_man = "Cначала добавьте жениха.";
+        public const string first_add_man_and_players = "Cначала добавьте жениха и невест.";
+        public const string player_added = "Вк пользователь(невеста) добавлен успешно.";
+        public const string first_play_round = "Cначала сыграйте раунд.";
+        public const string to_play_round = "Используйте комманду:  /round";
+        public const string to_create_players = "Для добавлени невесты исспользуйте комманду: /add nick";
+        public const string only_creator_can_use_command = "Только создатель игры может испльзовать эту команду.";
+        public const string only_creator_and_man_can_use_command = "Только создатель игры или игрок(жених) может испльзовать эту команду.";
+        public const string this_is_not_player = "Этот пользователь не учавствует в игре.";
+        public const string not_play_in_round = "Этот пользователь не учавствует в раунде.";
+
+        public const string answers_sent_to_man = "Ответы отправлены жениху.";
+        public const string players_inited = "Игроки для раунда иницилизированны, можно добавлять вопрос, ответы.";
+        public const string players_added = "Игроки добалены, можно играть первый раунд.";
+        public const string question_added = "Вопрос добавлен.";
+        public const string answer_added = "Вопрос добавлен.";
+    }
+    public class strc {
+        public const string @new = "/new";
+        public const string stop = "/stop";
+        public const string man = "/man ";
+        public const string add = "/add ";
+        public const string round = "/round";
+        public const string q = "/q ";
+        public const string a = "/a ";
+        public const string send_answers_to_man = "/saman ";
+    }
 
     public class processor {
 
@@ -520,165 +565,172 @@ namespace vk10pvbot
                         foreach (var item in commands)
                         {
                             var str = item.Body.Trim();
-                            if (str.IndexOf("/new") == 0)
+                            if (str.IndexOf(strc.@new) == 0)
                             {
-                                if (item.UserId.Value != connector.vk.UserId.Value)
+                                if (check_only_creator_can_use_command(connector, item, str))
                                 {
-                                    log.warning_command(str, "Вы не можете сейчас исспользовать эту комманду", "Ее может использовать только создатель игры.");
+                                    game = new play_game();
+                                    game.new_game();
+                                    log.info_command(str, strs.new_game_created);
                                 }
-                                game = new play_game();
-                                game.new_game();
-                                log.info_command(str, "Новая игра coздана успешно.");
                             }
-                            else if (str.IndexOf("/stop") == 0)
+                            else if (str.IndexOf(strc.stop) == 0)
                             {
-                                if (item.UserId.Value != connector.vk.UserId.Value)
+                                if (check_only_creator_can_use_command(connector, item, str))
                                 {
-                                    log.warning_command(str, "Вы не можете сейчас исспользовать эту комманду", "Ее может использовать только создатель игры.");
+                                    game = new play_game();
+                                    log.info_command(str, strs.game_stoped);
                                 }
-                                game = new play_game();
-                                log.info_command(str, "Игра закончена успешно.");
                             }
-                            else if (str.IndexOf("/man ") == 0)
+                            else if (str.IndexOf(strc.man) == 0)
                             {
-                                if (item.UserId.Value != connector.vk.UserId.Value)
+                                if (check_only_creator_can_use_command(connector, item, str))
                                 {
-                                    log.warning_command(str, "Вы не можете сейчас исспользовать эту комманду", "Ее может использовать только создатель игры.");
+                                    if ((game.status != play_game.statuses.new_game
+                                        && game.status != play_game.statuses.man_set))
+                                    {
+                                        log.warning_command(str,$"{strs.you_cannot_use_this_command} {strs.create_new_game}", strs.to_create_new_game);
+                                        continue;
+                                    }
+
+                                    var url = str.Replace(strc.man, "").Trim();
+                                    var screenname = url.Substring(url.LastIndexOf("/") + 1);
+                                    VkNet.Model.User user = null;
+
+                                    user = connector.user(screenname);
+
+                                    if (user == null)
+                                    {
+                                        log.warning_command(str, strs.vk_person_do_not_presetn, strs.to_create_man);
+                                        continue;
+                                    }
+
+                                    game.add_man(new player { userid = user.Id });
+                                    log.info_command(str, $"{strs.man_added} [{user.Id}, {user.FirstName} {user.LastName}]");
                                 }
-                                if ((game.status != play_game.statuses.new_game
-                                    && game.status != play_game.statuses.man_set))
-                                {
-                                    log.warning_command(str, "Вы не можете сейчас исспользовать эту комманду. Cначала сoздайте новую игру.", "Для создания новой игры исспользуте комманду: /new");
-                                    continue;
-                                }
-
-                                var url = str.Replace("/man ", "").Trim();
-                                var screenname = url.Substring(url.LastIndexOf("/") + 1);
-                                VkNet.Model.User user = null;
-
-                                user = connector.user(screenname);
-
-                                if (user == null)
-                                {
-                                    log.warning_command(str, "Такой вк пользователь не существует.", "Исспользуйте комманду:  /man https://vk.com/idxxx");
-                                    continue;
-                                }
-
-                                game.add_man(new player { userid = user.Id });
-                                log.info_command(str, $"Вк пользователь(жених) добавлен успешно. [{user.Id}, {user.FirstName} {user.LastName}]");
-
                             }
-                            else if (str.IndexOf("/add ") == 0)
+                            else if (str.IndexOf(strc.add) == 0)
                             {
                                 if ((game.status != play_game.statuses.man_set))
                                 {
-                                    log.warning_command(str, "Вы не можете сейчас исспользовать эту комманду. Cначала добавьте жениха.", "Для добавления жениха исспользуте комманду:  /man https://vk.com/idxxx");
+                                    log.warning_command(str, $"{strs.you_cannot_use_this_command} {strs.first_add_man}", strs.to_create_man);
                                     continue;
                                 }
 
-                                var nick = str.Replace("/add ", "").Trim();
+                                var nick = str.Replace(strc.add, "").Trim();
 
                                 game.add_player(new player { userid = item.UserId.Value, nick = nick });
-                                log.info_command(str, $"Вк пользователь(невеста) добавлен успешно. [{item.UserId.Value}, {nick}]");
+                                log.info_command(str, $"{strs.players_added} [{item.UserId.Value}, {nick}]");
                             }
-                            else if (str.IndexOf("/round") == 0)
+                            else if (str.IndexOf(strc.round) == 0)
                             {
-                                if (item.UserId.Value != connector.vk.UserId.Value)
+                                if (!check_only_creator_can_use_command(connector, item, str))
                                 {
-                                    log.warning_command(str, "Вы не можете сейчас исспользовать эту комманду", "Ее может использовать только создатель игры.");
-                                }
-                                if ((game.status != play_game.statuses.man_set
-                                    && game.status != play_game.statuses.round))
-                                {
-                                    if (!game.is_man_set())
-                                    {
-                                        log.warning_command(str, "Вы не можете сейчас исспользовать эту комманду. Cначала добавьте жениха.", "Для добавления жениха исспользуте комманду:  /man https://vk.com/idxxx");
-                                    }
-                                    else
-                                    {
-                                        log.warning_command(str, "Вы не можете сейчас исспользовать эту комманду. Cначала сыграйте раунд.", "Используйте комманду:  /round");
-                                    }
-                                    continue;
-                                }
 
-                                if (game.status == play_game.statuses.man_set)
-                                {
-                                    if (!game.players_set())
+                                    if ((game.status != play_game.statuses.man_set
+                                        && game.status != play_game.statuses.round))
                                     {
-                                        log.warning_command(str, "Вы не можете сейчас исспользовать эту комманду. Cначала добавьте жениха и невест.", "Для добавления жениха исспользуте комманду:  /man https://vk.com/idxxx" + " " + "Для добавлени невесты исспользуйте комманду: /add nick");
+                                        if (!game.is_man_set())
+                                        {
+                                            log.warning_command(str, $"{strs.you_cannot_use_this_command} {strs.first_add_man}", strs.to_create_man);
+                                        }
+                                        else
+                                        {
+                                            log.warning_command(str, $"{strs.you_cannot_use_this_command} {strs.first_play_round}", strs.to_play_round);
+                                        }
                                         continue;
                                     }
+
+                                    if (game.status == play_game.statuses.man_set)
+                                    {
+                                        if (!game.players_set())
+                                        {
+                                            log.warning_command(str, $"{strs.you_cannot_use_this_command} {strs.first_add_man_and_players}", $"{strs.to_create_man} {strs.to_create_players}");
+                                            continue;
+                                        }
+                                        else
+                                        {
+                                            log.info_command(str, strs.players_added);
+                                        }
+                                    }
+
+                                    if (game.play_round())
+                                    {
+                                        log.info_command(str, strs.game_played);
+                                    }
                                     else
                                     {
-                                        log.info_command(str, "Игроки добалены, можно играть первый раунд.");
+                                        log.info_command(str,strs.players_inited);
                                     }
                                 }
-
-                                if (game.play_round())
-                                {
-                                    log.info_command(str, "Игра сыграна.");
-                                }
-                                else
-                                {
-                                    log.info_command(str, "Игроки для раунда иницилизированны, можно добавлять вопрос, ответы.");
-                                }
-
                             }
-                            else if (str.IndexOf("/q ") == 0)
+                            else if (str.IndexOf(strc.q) == 0)
                             {
                                 if (item.UserId.Value != connector.vk.UserId.Value || 
                                     game.is_man_set()|| item.UserId.Value != game.game.man.userid)
                                 {
-                                    log.warning_command(str, "Вы не можете сейчас исспользовать эту комманду", "Ее может использовать только создатель игры или игрок(жених).");
+                                    log.warning_command(str,strs.you_cannot_use_this_command, strs.only_creator_and_man_can_use_command);
                                 }
 
-                                var q = str.Replace("/q ", "").Trim();
+                                var q = str.Replace(strc.q, "").Trim();
                                 game.add_question(q);
-                                log.info_command(str,$"Вопрос жениха: \"{q}\", успешно добавлен");
+                                log.info_command(str,$"{strs.question_added} {q}");
                             }
-                            else if (str.IndexOf("/a ") == 0)
+                            else if (str.IndexOf(strc.a) == 0)
                             {
-                                var a = str.Replace("/a ", "").Trim();
                                 var player = game.player(item.UserId);
                                 if (player==null)
                                 {
-                                    log.warning_command(str, "Этот пользователь не учавствует в игре.", "");
+                                    log.warning_command(str, $"{strs.this_is_not_player} [{item.UserId}]", "");
                                     continue;
                                 }
+                                var a = str.Replace("/a ", "").Trim();
                                 if (game.add_answer(player, a))
                                 {
-                                    log.info_command(str, $"Ответ невесты [{player.userid}, {player.nick}]: \"{a}\", успешно добавлен");
+                                    log.info_command(str, $"{strs.answer_added} [{player.userid}, {player.nick}] {a}");
+                                    continue;
                                 }
                                 else {
-                                    log.warning_command(str, "Этот пользователь не учавствует в раунде.", "");
+                                    log.warning_command(str, strs.not_play_in_round, "");
+                                    continue;
                                 }
                             }
-                            else if (str.IndexOf("/saman") == 0)
+                            else if (str.IndexOf(strc.send_answers_to_man) == 0)
                             {
-                                if (item.UserId.Value != connector.vk.UserId.Value)
+                                if (!check_only_creator_can_use_command(connector,item,str))
                                 {
-                                    log.warning_command(str, "Вы не можете сейчас исспользовать эту комманду", "Ее может использовать только создатель игры.");
+                                    continue;
                                 }
                                 if (game.status!= play_game.statuses.answers_set)
                                 {
-                                    log.warning_command(str, "Вы не можете сейчас исспользовать эту комманду", "Сначала невесты должны ответить на вопрос жениха.");
+                                    log.warning_command(str, strs.you_cannot_use_this_command, strs.first_players_should_answer_to_question);
+                                    continue;
                                 }
                                 //TODO: send message to man
                                 connector.send_message("", game.game.man.userid);
-                                log.info_command(str, "Ответы отправлены жениху.");
+                                log.info_command(str, strs.answers_sent_to_man);
                             }
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    log.error_command(ex, "Проститииииии. Эта ошибка в программе, скопируйте лог файл и скиньте, автору(мне) программы.", game);
+                    log.error_command(ex, strs.send_log, game);
 
                 }
 
                 Thread.Sleep(1000);
             }
         }
+
+        private bool check_only_creator_can_use_command(vk_connector connector, VkNet.Model.Message message, string command) {
+            var flag = message.UserId.Value == connector.vk.UserId.Value;
+            if (!flag)
+            {
+                log.warning_command(command, strs.you_cannot_use_this_command, strs.only_creator_can_use_command);
+            }
+            return flag;
+        } 
         
     }
 
@@ -751,7 +803,7 @@ namespace vk10pvbot
               var path = @"C:\Users\john\Desktop\file.txt";// args[0];
             if (!File.Exists(path))
             {
-                log.error($"Файл \"{path}\" не найден.", "Запустите программу из коммандной строки: vk10pvbot \"C:\\path\\to_file.txt\"");
+                log.error($"{strs.file_not_found} {path}", strs.how_to_use_app);
                 goto error;
             }
             auth auth = null;
@@ -766,7 +818,7 @@ namespace vk10pvbot
             }
             if (auth == null)
             {
-                log.error($"Проверьте правильноcnm содержимого файла \"{path}\".", "");
+                log.error($"{strs.check_file_content} {path}", "");
                 goto error;
             }
 
@@ -776,18 +828,18 @@ namespace vk10pvbot
             if (!connector.login(auth))
             {
                 auth.password = "******";
-                log.error_command(null, "Не удалоcь залогинится. Проверьте правильность login, password и appid.", auth);
+                log.error_command(null, strs.check_creds, auth);
                 goto error;
             }
             if (!connector.login(auth))
             {
                 auth.password = "******";
-                log.error_command(null, "Не удалоcь залогинится. Проверьте правильность login, password и appid.", auth);
+                log.error_command(null, strs.check_creds, auth);
                 goto error;
             }
             if (!connector.add_chat(auth.chatname))
             {
-                log.error_command(null, $"Чат с именем \"{auth.chatname}\" не найден", null);
+                log.error_command(null, $"{strs.chat_not_found} {auth.chatname}", null);
                 goto error;
             }
 

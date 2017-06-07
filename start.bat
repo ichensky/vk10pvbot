@@ -1,0 +1,1 @@
+vk10pvbot "C:\Users\john\Desktop\file.txt"
