@@ -79,6 +79,7 @@ namespace vk10pvbot
     public class player {
         public long userid { get; set; }
         public string nick { get; set; }
+        public int id { get; set; }
     }
     public class player_answer
     {
@@ -152,6 +153,7 @@ namespace vk10pvbot
                     return;
                 }
             }
+            player.id = this.game.players.Count;
             this.game.players.Add(player);
         }
 
@@ -395,11 +397,19 @@ namespace vk10pvbot
                 Message = message
             });
         }
+        public void send_chat_message(string message)
+        {
+            vk.Messages.Send(new VkNet.Model.RequestParams.MessagesSendParams()
+            {
+                PeerId = info.chat_peerid,
+                Message = message
+            });
+        }
+
     }
 
     public class processor_commands
     {
-
         vk_connector connector;
         long recived_ticks;
         DateTime last_processed_recived_message_date;
@@ -543,6 +553,190 @@ namespace vk10pvbot
         public const string send_answers_to_man = "/saman ";
     }
 
+    public class command_messsage {
+        public play_game game { get; set; }
+        public VkNet.Model.Message message { get; private set; }
+        public vk_connector connector { get; private set; }
+        public string str { get; private set; }
+        public string body { get; private set; }
+        public string command { get; private set; }
+        public command_messsage(vk_connector connector, play_game game, VkNet.Model.Message message) {
+            this.game = game;
+            this.connector = connector;
+            this.message = message;
+            this.str = message.Body.Trim();
+        }
+        public bool check(string command)
+        {
+            this.command = command;
+            this.body = this.str.Replace(this.command,"");
+            return this.str.IndexOf(command) == 0;
+        }
+        private bool check_only_creator_can_use_command()
+        {
+            var flag = this.message.UserId.Value == connector.vk.UserId.Value;
+            if (!flag)
+            {
+                log_warning(strs.you_cannot_use_this_command, strs.only_creator_can_use_command);
+            }
+            return flag;
+        }
+        private void log_warning(string error, string note)
+        {
+            log.warning_command(this.str, error, note);
+        }
+        private void log_info(string note)
+        {
+            log.info_command(this.str, note);
+        }
+
+        public void new_game()
+        {
+            if (check_only_creator_can_use_command())
+            {
+                this.game = new play_game();
+                this.game.new_game();
+                log_info( strs.new_game_created);
+            }
+        }
+        public void stop_game()
+        {
+            if (check_only_creator_can_use_command())
+            {
+                game = new play_game();
+                log_info(strs.game_stoped);
+            }
+        }
+        public void add_man()
+        {
+            if (check_only_creator_can_use_command())
+            {
+                if ((game.status != play_game.statuses.new_game
+                                         && game.status != play_game.statuses.man_set))
+                {
+                    log_warning($"{strs.you_cannot_use_this_command} {strs.create_new_game}", strs.to_create_new_game);
+                    return;
+                }
+
+                var screenname = this.body.Substring(this.body.LastIndexOf("/") + 1);
+                VkNet.Model.User user = null;
+
+                user = connector.user(screenname);
+
+                if (user == null)
+                {
+                    log_warning( strs.vk_person_do_not_presetn, strs.to_create_man);
+                    return;
+                }
+
+                game.add_man(new player { userid = user.Id });
+                log_info($"{strs.man_added} [{user.Id}, {user.FirstName} {user.LastName}]");
+            }
+        }
+        public void add_player()
+        {
+            if ((game.status != play_game.statuses.man_set))
+            {
+                log_warning($"{strs.you_cannot_use_this_command} {strs.first_add_man}", strs.to_create_man);
+                return;
+            }
+
+            game.add_player(new player { userid = message.UserId.Value, nick = this.body });
+            log_info($"{strs.players_added} [{message.UserId.Value}, {this.body}]");
+        }
+        public void round()
+        {
+            if (check_only_creator_can_use_command())
+            {
+                if ((game.status != play_game.statuses.man_set
+                                        && game.status != play_game.statuses.round))
+                {
+                    if (!game.is_man_set())
+                    {
+                        log_warning( $"{strs.you_cannot_use_this_command} {strs.first_add_man}", strs.to_create_man);
+                    }
+                    else
+                    {
+                        log_warning( $"{strs.you_cannot_use_this_command} {strs.first_play_round}", strs.to_play_round);
+                    }
+                    return;
+                }
+
+                if (game.status == play_game.statuses.man_set)
+                {
+                    if (!game.players_set())
+                    {
+                        log_warning( $"{strs.you_cannot_use_this_command} {strs.first_add_man_and_players}", $"{strs.to_create_man} {strs.to_create_players}");
+                        return;
+                    }
+                    else
+                    {
+                        log_info(strs.players_added);
+                    }
+                }
+
+                if (game.play_round())
+                {
+                    log_info(strs.game_played);
+                }
+                else
+                {
+                    log_info(strs.players_inited);
+                }
+            }
+        }
+        public void add_question()
+        {
+            if (this.message.UserId.Value != connector.vk.UserId.Value ||
+                                    game.is_man_set() || this.message.UserId.Value != game.game.man.userid)
+            {
+                log_warning(strs.you_cannot_use_this_command, strs.only_creator_and_man_can_use_command);
+            }
+
+            game.add_question(this.body);
+            log_info($"{strs.question_added} {this.body}");
+        }
+        public void add_answer()
+        {
+            var player = game.player(this.message.UserId);
+            if (player == null)
+            {
+                log_warning($"{strs.this_is_not_player} [{this.message.UserId}]", "");
+                return;
+            }
+            var a = str.Replace("/a ", "").Trim();
+            if (game.add_answer(player, a))
+            {
+                log_info($"{strs.answer_added} [{player.userid}, {player.nick}] {a}");
+                return;
+            }
+            else
+            {
+                log_warning(strs.not_play_in_round, "");
+                return;
+            }
+        }
+        public void send_answers_to_man()
+        {
+            if (check_only_creator_can_use_command())
+            {
+                if (game.status != play_game.statuses.answers_set)
+                {
+                    log_warning(strs.you_cannot_use_this_command, strs.first_players_should_answer_to_question);
+                    return;
+                }
+                var s = new StringBuilder();
+                foreach (var pa in game.game.round.players_answers)
+                {
+                    s.AppendLine(pa.player.id + ". " + pa.answer);
+                }
+                connector.send_message(s.ToString(), game.game.man.userid);
+                log_info(strs.answers_sent_to_man);
+            }
+        }
+
+    }
+
     public class processor {
 
         vk_connector connector;
@@ -550,6 +744,7 @@ namespace vk10pvbot
            this.connector = connector;
         }
 
+        
       
         public void go() {
             var processor_commands = new processor_commands(connector);
@@ -564,152 +759,39 @@ namespace vk10pvbot
                     {
                         foreach (var item in commands)
                         {
-                            var str = item.Body.Trim();
-                            if (str.IndexOf(strc.@new) == 0)
+                            var cm = new command_messsage(connector,game,item);
+                            if (cm.check(strc.@new))
                             {
-                                if (check_only_creator_can_use_command(connector, item, str))
-                                {
-                                    game = new play_game();
-                                    game.new_game();
-                                    log.info_command(str, strs.new_game_created);
-                                }
+                                cm.new_game();
                             }
-                            else if (str.IndexOf(strc.stop) == 0)
+                            else if (cm.check(strc.stop))
                             {
-                                if (check_only_creator_can_use_command(connector, item, str))
-                                {
-                                    game = new play_game();
-                                    log.info_command(str, strs.game_stoped);
-                                }
+                                cm.stop_game();
                             }
-                            else if (str.IndexOf(strc.man) == 0)
+                            else if (cm.check(strc.man)) {
+                                cm.add_man();
+                            }
+                            else if (cm.check(strc.add))
                             {
-                                if (check_only_creator_can_use_command(connector, item, str))
-                                {
-                                    if ((game.status != play_game.statuses.new_game
-                                        && game.status != play_game.statuses.man_set))
-                                    {
-                                        log.warning_command(str,$"{strs.you_cannot_use_this_command} {strs.create_new_game}", strs.to_create_new_game);
-                                        continue;
-                                    }
-
-                                    var url = str.Replace(strc.man, "").Trim();
-                                    var screenname = url.Substring(url.LastIndexOf("/") + 1);
-                                    VkNet.Model.User user = null;
-
-                                    user = connector.user(screenname);
-
-                                    if (user == null)
-                                    {
-                                        log.warning_command(str, strs.vk_person_do_not_presetn, strs.to_create_man);
-                                        continue;
-                                    }
-
-                                    game.add_man(new player { userid = user.Id });
-                                    log.info_command(str, $"{strs.man_added} [{user.Id}, {user.FirstName} {user.LastName}]");
-                                }
+                                cm.add_player();
                             }
-                            else if (str.IndexOf(strc.add) == 0)
+                            else if (cm.check(strc.round))
                             {
-                                if ((game.status != play_game.statuses.man_set))
-                                {
-                                    log.warning_command(str, $"{strs.you_cannot_use_this_command} {strs.first_add_man}", strs.to_create_man);
-                                    continue;
-                                }
-
-                                var nick = str.Replace(strc.add, "").Trim();
-
-                                game.add_player(new player { userid = item.UserId.Value, nick = nick });
-                                log.info_command(str, $"{strs.players_added} [{item.UserId.Value}, {nick}]");
+                                cm.round();
                             }
-                            else if (str.IndexOf(strc.round) == 0)
+                            else if (cm.check(strc.q))
                             {
-                                if (!check_only_creator_can_use_command(connector, item, str))
-                                {
-
-                                    if ((game.status != play_game.statuses.man_set
-                                        && game.status != play_game.statuses.round))
-                                    {
-                                        if (!game.is_man_set())
-                                        {
-                                            log.warning_command(str, $"{strs.you_cannot_use_this_command} {strs.first_add_man}", strs.to_create_man);
-                                        }
-                                        else
-                                        {
-                                            log.warning_command(str, $"{strs.you_cannot_use_this_command} {strs.first_play_round}", strs.to_play_round);
-                                        }
-                                        continue;
-                                    }
-
-                                    if (game.status == play_game.statuses.man_set)
-                                    {
-                                        if (!game.players_set())
-                                        {
-                                            log.warning_command(str, $"{strs.you_cannot_use_this_command} {strs.first_add_man_and_players}", $"{strs.to_create_man} {strs.to_create_players}");
-                                            continue;
-                                        }
-                                        else
-                                        {
-                                            log.info_command(str, strs.players_added);
-                                        }
-                                    }
-
-                                    if (game.play_round())
-                                    {
-                                        log.info_command(str, strs.game_played);
-                                    }
-                                    else
-                                    {
-                                        log.info_command(str,strs.players_inited);
-                                    }
-                                }
+                                cm.add_question();
                             }
-                            else if (str.IndexOf(strc.q) == 0)
+                            else if (cm.check(strc.a))
                             {
-                                if (item.UserId.Value != connector.vk.UserId.Value || 
-                                    game.is_man_set()|| item.UserId.Value != game.game.man.userid)
-                                {
-                                    log.warning_command(str,strs.you_cannot_use_this_command, strs.only_creator_and_man_can_use_command);
-                                }
+                                cm.add_answer();
+                            }
+                            else if (cm.check(strc.send_answers_to_man))
+                            {
+                                cm.send_answers_to_man();
+                            }
 
-                                var q = str.Replace(strc.q, "").Trim();
-                                game.add_question(q);
-                                log.info_command(str,$"{strs.question_added} {q}");
-                            }
-                            else if (str.IndexOf(strc.a) == 0)
-                            {
-                                var player = game.player(item.UserId);
-                                if (player==null)
-                                {
-                                    log.warning_command(str, $"{strs.this_is_not_player} [{item.UserId}]", "");
-                                    continue;
-                                }
-                                var a = str.Replace("/a ", "").Trim();
-                                if (game.add_answer(player, a))
-                                {
-                                    log.info_command(str, $"{strs.answer_added} [{player.userid}, {player.nick}] {a}");
-                                    continue;
-                                }
-                                else {
-                                    log.warning_command(str, strs.not_play_in_round, "");
-                                    continue;
-                                }
-                            }
-                            else if (str.IndexOf(strc.send_answers_to_man) == 0)
-                            {
-                                if (!check_only_creator_can_use_command(connector,item,str))
-                                {
-                                    continue;
-                                }
-                                if (game.status!= play_game.statuses.answers_set)
-                                {
-                                    log.warning_command(str, strs.you_cannot_use_this_command, strs.first_players_should_answer_to_question);
-                                    continue;
-                                }
-                                //TODO: send message to man
-                                connector.send_message("", game.game.man.userid);
-                                log.info_command(str, strs.answers_sent_to_man);
-                            }
                         }
                     }
                 }
@@ -723,15 +805,7 @@ namespace vk10pvbot
             }
         }
 
-        private bool check_only_creator_can_use_command(vk_connector connector, VkNet.Model.Message message, string command) {
-            var flag = message.UserId.Value == connector.vk.UserId.Value;
-            if (!flag)
-            {
-                log.warning_command(command, strs.you_cannot_use_this_command, strs.only_creator_can_use_command);
-            }
-            return flag;
-        } 
-        
+       
     }
 
     class Program
@@ -857,16 +931,7 @@ namespace vk10pvbot
 
       
 
-    //    public void send_chat_message(string message)
-    //    {
-    //        vk.Messages.Send(new VkNet.Model.RequestParams.MessagesSendParams()
-    //        {
-    //             PeerId =info.chat_peerid,
-    //             Message=message
-    //        });
-    //        info.chat_start_message_id++;
-    //    }
-
+   
 
 
 
