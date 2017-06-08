@@ -83,70 +83,32 @@ namespace vk10pvbot
         public int id { get; set; }
         public string firstname { get; internal set; }
         public string lastname { get; internal set; }
-    }
-    public class player_answer
-    {
-        public player player { get; set; }
-        public string answer { get; set; }
-    }
-
-    public class round {
-
-        public List<player_answer> players_answers { get; set; }
-        public List<player> kill { get; set; }
-        public List<player> rose { get; set; }
-        public string question { get; set; }
+        public string answer { get; internal set; }
+        public int rose { get; set; }
+        public bool kill { get; set; }
     }
 
     public class game {
         public player man { get; set; }
-        public bool no_winners { get; set; }
         public List<player> players { get; set; }
-        public round round { get; set; }
+        public string question { get; set; }
         public player winner { get; set; }
     }
 
     public class play_game {
-        public game game;
-        public enum statuses {
-            none = 0,
-            new_game = 1,
-            man_set = 2,
-
-            new_round = 3,
-
-            question_set = 4,
-            answers_set = 5,
-
-            played = 6,
-        }
-        public statuses status { get; private set; } = statuses.none;
+        private game game;
 
         public play_game() {
-            this.status = statuses.none;
-        }
-        public void new_game() {
             this.game = new game();
             this.game.players = new List<player>();
-            this.status = statuses.new_game;
         }
 
         public void add_man(player player)
         {
-            if (this.status != statuses.new_game
-                && this.status != statuses.man_set)
-            {
-                throw new Exception();
-            }
             this.game.man = player;
-            this.game.round = new round { };
-            this.status = statuses.man_set;
         }
         public void add_player(player player) {
-            if (this.status != statuses.man_set)
-            {
-                throw new Exception();
-            }
+            
             foreach (var item in this.game.players)
             {
                 if (item.userid == player.userid)
@@ -159,362 +121,118 @@ namespace vk10pvbot
             this.game.players.Add(player);
         }
 
-        public bool players_set() {
-            if (this.status != statuses.man_set)
-            {
-                throw new Exception();
-            }
-            if (this.game.man == null || this.game.players.Count == 0)
-            {
-                return false;
-            }
-            this.game.round.players_answers = this.game.players.Select(x => new player_answer { player = x }).ToList();
-            this.status = statuses.new_round;
-            return true;
-        }
-
         public void add_question(string question) {
-            if (this.status != statuses.new_round)
-            {
-                throw new Exception();
-            }
 
-            this.game.round.question = question;
-            status = statuses.question_set;
+            this.game.question = question;
         }
 
-        public bool add_answer(player player, string answer)
+        public player add_answer(long userid, string answer)
         {
-            if (this.status != statuses.question_set && this.status != statuses.answers_set)
+            foreach (var item in this.game.players)
             {
-                throw new Exception();
-            }
-
-            foreach (var item in this.game.round.players_answers)
-            {
-                if (item.player.userid == player.userid)
+                if (item.userid == userid)
                 {
-                    this.status = statuses.answers_set;
                     item.answer = answer;
-                    return true;
+                    return item;
                 }
             }
-            return false;
+            return null;
         }
 
         public void rose(List<int> ids) {
-            this.game.round.rose = kill_rose(ids);
+
+            foreach (var id in ids)
+            {
+                var p = this.game.players.FirstOrDefault(x => x.id==id);
+                if (p != null)
+                {
+                    p.rose++;
+                }
+            }
         }
         public void kill(List<int> ids)
         {
-            this.game.round.kill = kill_rose(ids);
-        }
-
-        private List<player> kill_rose(List<int> ids) {
-            if (this.status != statuses.answers_set)
-            {
-                throw new Exception();
-            }
-            var list = new List<player>();
             foreach (var id in ids)
             {
-                var pa = this.game.round.players_answers.FirstOrDefault(x => x.player.id == id);
-                if (pa != null)
+                var p = this.game.players.FirstOrDefault(x => x.id == id);
+                if (p != null)
                 {
-                    list.Add(pa.player);
+                    p.kill=true;
                 }
             }
-            return list;
+        }
+        public void unkill(List<int> ids)
+        {
+            foreach (var id in ids)
+            {
+                var p = this.game.players.FirstOrDefault(x => x.id == id);
+                if (p != null)
+                {
+                    p.kill = false;
+                }
+            }
         }
 
-     
-        public bool play_round() {
+        public player play_round() {
+
+            var c = this.game.players.Count(x => x.kill);
+
+            this.game.question = null;
+            foreach (var player in this.game.players)
+            {
+                if (string.IsNullOrWhiteSpace(player.answer))
+                {
+                    player.kill = true;
+                }
+                player.answer = null;
+            }
             
-            if (this.status != statuses.answers_set)
+            if (c==this.game.players.Count-1)
             {
-                throw new Exception();
+                this.game.winner = this.game.players.FirstOrDefault(x=>!x.kill);
+                return this.game.winner;
+            }
+            else if (c == this.game.players.Count)
+            {
+                this.game.winner = this.game.man;
+                return this.game.winner;
             }
 
-            begin:
-            for (int i = 0; i < this.game.round.players_answers.Count; i++)
-            {
-                var item = this.game.round.players_answers[i];
-                if (string.IsNullOrWhiteSpace(item.answer))
-                {
-                    this.game.round.players_answers.RemoveAt(i);
-                    goto begin;
-                }
-            }
-
-            var prev_round = this.game.round;
-            this.game.round = new round
-            {
-                players_answers = prev_round.players_answers.Select(x => new player_answer { player = x.player }).ToList(),
-            };
-
-            if (prev_round.kill != null)
-            {
-                foreach (var kill in prev_round.kill)
-                {
-                    for (int i = 0; i < this.game.round.players_answers.Count; i++)
-                    {
-                        var item = this.game.round.players_answers[i];
-                        if (item.player.userid == kill.userid)
-                        {
-                            this.game.round.players_answers.RemoveAt(i);
-                            break;
-                        }
-                    }
-                }
-            }
-
-            if (this.game.round.players_answers.Count == 1)
-            {
-                this.game.winner = this.game.round.players_answers[0].player;
-                this.status = statuses.played;
-                return true;
-            }
-            if (this.game.round.players_answers.Count == 0)
-            {
-                this.game.no_winners = true;
-                this.status = statuses.played;
-                return true;
-            }
-
-            this.status = statuses.new_round;
-            return false;
+            return null;
         }
 
-        internal bool is_man_set()
+        public player player(long? userId)
         {
-            return game.man != null;
-        }
-
-        internal player player(long? userId)
-        {
-            if (this.game.players == null || this.game.players.Count == 0)
-            {
-                return null;
-            };
             return this.game.players.FirstOrDefault(x => x.userid == userId);
+        }
+        public player man()
+        {
+            return this.game.man;
+        }
+
+        public List<player> players()
+        {
+            return this.game.players;
+        }
+        public player winner()
+        {
+            return this.game.winner;
+        }
+
+        public string question()
+        {
+            return this.game.question;
         }
     }
 
-    public class info {
+    public class info
+    {
         public VkNet.Model.Chat chat;
         public long chat_peerid;
     }
-
-    public class vk_connector {
-        public readonly VkApi vk = new VkApi();
-        private info info;
-
-        public bool login(auth auth)
-        {
-            try
-            {
-                vk.Authorize(new ApiAuthParams
-                {
-                    ApplicationId = auth.app_id,
-                    Login = auth.email,
-                    Password = auth.password,
-                    Settings = Settings.Messages,
-                });
-                return true;
-            }
-            catch (Exception)
-            {
-                return false;
-            }
-        }
-        public bool add_chat(string chat_name)
-        {
-            try
-            {
-                var chat = (vk.Messages.SearchDialogs(chat_name)).Chats[0];
-                this.info = new info()
-                {
-                    chat = chat,
-                    chat_peerid = get_peer_id(chat.Id),
-                };
-                return true;
-            }
-            catch (Exception ex)
-            {
-                return false;
-            }
-        }
-        private long get_peer_id(long chatid)
-        {
-            return 2000000000 + chatid;
-        }
-
-        public List<VkNet.Model.Message> messages(ulong timeoffset, VkNet.Enums.MessageType messagetype)
-        {
-            try
-            {
-                return vk.Messages.Get(new VkNet.Model.RequestParams.MessagesGetParams
-                {
-                    Filters = VkNet.Enums.MessagesFilter.All,
-                    Offset = 0,
-                    Out = messagetype,
-                    PreviewLength = 0,
-                    Count = 20,
-                    TimeOffset = timeoffset
-                }).Messages.ToList();
-            }
-            catch (Exception ex)
-            {
-            }
-
-            return null;
-        }
-
-        public VkNet.Model.User user(string screenname)
-        {
-            try
-            {
-                var model = vk.Utils.ResolveScreenName(screenname);
-                if (model.Type == VkNet.Enums.VkObjectType.User)
-                {
-                    return user(model.Id.Value);
-                }
-            }
-            catch (Exception)
-            {
-            }
-            return null;
-        }
-        public VkNet.Model.User user(long id)
-        {
-            try
-            {
-                return vk.Users.Get(id);
-            }
-            catch (Exception)
-            {
-            }
-            return null;
-        }
-        public void send_message(string message, long userid)
-        {
-            vk.Messages.Send(new VkNet.Model.RequestParams.MessagesSendParams()
-            {
-                UserId = userid,
-                Message = message
-            });
-        }
-        public void send_chat_message(string message)
-        {
-            vk.Messages.Send(new VkNet.Model.RequestParams.MessagesSendParams()
-            {
-                PeerId = info.chat_peerid,
-                Message = message
-            });
-        }
-
-    }
     
-    public class processor_commands
+    public class strs
     {
-        vk_connector connector;
-        long recived_ticks;
-        DateTime last_processed_recived_message_date;
-        long send_ticks;
-        DateTime last_processed_send_message_date;
-
-        public processor_commands(vk_connector connector)
-        {
-            this.connector = connector;
-            var date = DateTime.Now;
-            recived_ticks = date.Ticks;
-            last_processed_recived_message_date = date;
-            send_ticks = date.Ticks;
-            last_processed_send_message_date = date;
-        }
-
-        public List<VkNet.Model.Message> go()
-        {
-            var recived_messages = messages(connector,
-                ref recived_ticks,
-                ref last_processed_recived_message_date,
-                VkNet.Enums.MessageType.Received);
-            recived_messages.Reverse();
-
-            var recived_commands = commands(recived_messages);
-
-            var send_messages = messages(connector,
-                    ref send_ticks,
-                    ref last_processed_send_message_date,
-                    VkNet.Enums.MessageType.Sended);
-            send_messages.Reverse();
-
-            var send_commands = commands(send_messages);
-
-            send_commands.AddRange(recived_commands);
-            send_commands.Sort((x, y) => x.Date.Value.Ticks < y.Date.Value.Ticks ? 0 : 1);
-
-            return send_commands;
-        }
-
-        private List<VkNet.Model.Message> messages(vk_connector connector,
-          ref long ticks,
-          ref DateTime last_processed_message_date,
-          VkNet.Enums.MessageType messagetype)
-        {
-            var date = DateTime.Now;
-            var timeoffset = (ulong)TimeSpan.FromTicks((date.Ticks - ticks)).TotalSeconds;
-
-            var messsages = connector.messages(timeoffset, messagetype);
-            if (messsages == null)
-            {
-                return null;
-            }
-            if (messsages.Count > 0)
-            {
-                ticks = messsages[0].Date.Value.Ticks;
-            }
-
-            for (int i = messsages.Count - 1; i > -1; i--)
-            {
-                if (messsages[i].Date.Value.Ticks <= last_processed_message_date.Ticks)
-                {
-                    messsages.RemoveAt(i);
-                }
-                else
-                {
-                    break;
-                }
-            }
-            if (messsages.Count > 0)
-            {
-                ticks = messsages[0].Date.Value.Ticks;
-                last_processed_message_date = messsages[0].Date.Value;
-            }
-            return messsages;
-        }
-
-        private List<VkNet.Model.Message> commands(List<VkNet.Model.Message> messages)
-        {
-            var list = new List<VkNet.Model.Message>();
-            foreach (var item in messages)
-            {
-                var str = item.Body;
-                if (!string.IsNullOrEmpty(str))
-                {
-                    str = item.Body.Trim();
-
-                    if (str.IndexOf("/") == 0)
-                    {
-                        list.Add(item);
-                    }
-                }
-            }
-            return list;
-        }
-
-    }
-    public class strs{
         public const string file_not_found = "Файл не найден.";
         public const string how_to_use_app = "Запустите программу из коммандной строки: vk10pvbot \"C:\\path\\to_file.txt\"";
         public const string check_file_content = "Проверьте правильноcnm содержимого файла.";
@@ -554,19 +272,21 @@ namespace vk10pvbot
         public const string question_added = "Вопрос добавлен.";
         public const string answer_added = "Вопрос добавлен.";
     }
-    public class strc {
-        public const string @new = "/new";
-        public const string stop = "/stop";
-        public const string man = "/man ";
-        public const string add = "/add ";
-        public const string players = "/players";
-        public const string round = "/round";
-        public const string q = "/q ";
-        public const string a = "/a ";
-        public const string send_answers_to_man = "/sent";
-        public const string kill = "/kill ";
-        public const string rose = "/rose ";
-        public const string status = "/status";
+    public class strc
+    {
+        public const string @new = "новая игра";
+        public const string man = "жених";
+
+        public const string add = "+";
+
+        public const string round = "раунд";
+        public const string q = "вопрос";
+        public const string a = "ответ";
+        public const string send_answers_to_man = "отправить";
+        public const string kill = "убить ";
+        public const string unkill = "воскресить";
+        public const string rose = "роза";
+        public const string status = "список";
     }
 
     public class command_messsage
@@ -592,7 +312,7 @@ namespace vk10pvbot
         {
             this.command = command;
             this.body = this.str.Replace(this.command, "");
-            return this.str.IndexOf(command) == 0;
+            return this.str.ToLower().IndexOf(command) == 0;
         }
         private bool check_only_creator_can_use_command()
         {
@@ -605,8 +325,9 @@ namespace vk10pvbot
         }
         private bool check_only_creator_or_man_can_use_command()
         {
+            var man = game.man();
             var flag = this.message.UserId.Value == connector.vk.UserId.Value ||
-                (game.is_man_set() && this.message.UserId.Value == game.game.man.userid);
+                (man!=null && this.message.UserId.Value == man.userid);
             if (!flag)
             {
                 log_warning(strs.you_cannot_use_this_command, strs.only_creator_or_man_can_use_command);
@@ -616,9 +337,12 @@ namespace vk10pvbot
         }
         private bool check_only_creator_or_man_or_players_can_use_command()
         {
+            var man = game.man();
+            var players = game.players();
+
             var flag = this.message.UserId.Value == connector.vk.UserId.Value ||
-                (game.is_man_set() && this.message.UserId.Value == game.game.man.userid)
-                || (game.game.players != null && game.game.players.Any(x => x.id == this.message.UserId.Value));
+                (man!=null && this.message.UserId.Value == man.userid)
+                || players.Any(x => x.userid == this.message.UserId.Value);
             if (!flag)
             {
                 log_warning(strs.you_cannot_use_this_command, strs.only_creator_or_man_or_players_can_use_command);
@@ -641,52 +365,30 @@ namespace vk10pvbot
             if (check_only_creator_can_use_command())
             {
                 this.game = new play_game();
-                this.game.new_game();
                 log_info(strs.new_game_created);
             }
         }
-        public void stop_game()
-        {
-            if (check_only_creator_can_use_command())
-            {
-                game = new play_game();
-                log_info(strs.game_stoped);
-            }
-        }
+       
         public void add_man()
         {
             if (check_only_creator_can_use_command())
             {
-                if ((game.status != play_game.statuses.new_game
-                                         && game.status != play_game.statuses.man_set))
-                {
-                    log_warning($"{strs.you_cannot_use_this_command} {strs.create_new_game}", strs.to_create_new_game);
-                    return;
-                }
-
                 var screenname = this.body.Substring(this.body.LastIndexOf("/") + 1);
-                VkNet.Model.User user = null;
-
-                user = connector.user(screenname);
+                var user = connector.user(screenname);
 
                 if (user == null)
                 {
                     log_warning(strs.vk_person_do_not_presetn, strs.to_create_man);
                     return;
                 }
+                var nick = "Жених";
 
-                game.add_man(new player { userid = user.Id, firstname = user.FirstName, lastname = user.LastName });
+                game.add_man(new player { nick=nick, userid = user.Id, firstname = user.FirstName, lastname = user.LastName });
                 log_info($"{strs.man_added} [{user.Id}, {user.FirstName} {user.LastName}]");
             }
         }
         public void add_player()
         {
-            if ((game.status != play_game.statuses.man_set))
-            {
-                log_warning($"{strs.you_cannot_use_this_command} {strs.first_add_man}", strs.to_create_man);
-                return;
-            }
-
             var player = connector.user(message.UserId.Value);
             var nick = this.body;
             if (string.IsNullOrEmpty(nick))
@@ -694,41 +396,16 @@ namespace vk10pvbot
                 nick = $"{player.FirstName} {player.LastName}";
             }
 
-            game.add_player(new player { userid = player.Id, nick = this.body, firstname = player.FirstName, lastname = player.LastName });
+            game.add_player(new player { userid = player.Id, nick = nick, firstname = player.FirstName, lastname = player.LastName });
             log_info($"{strs.players_added} [{player.Id}, {nick}, {player.FirstName} {player.LastName}]");
         }
 
-        public void players()
-        {
-            if (check_only_creator_can_use_command())
-            {
-                if (game.status != play_game.statuses.man_set)
-                {
-                    log_warning($"{strs.you_cannot_use_this_command} {strs.first_add_man}", strs.to_create_man);
-                    return;
-                }
-                if (!game.players_set())
-                {
-                    log_warning($"{strs.you_cannot_use_this_command} {strs.first_add_man_and_players}", $"{strs.to_create_man} {strs.to_create_players}");
-                    return;
-                }
-                else
-                {
-                    log_info(strs.players_added);
-                }
-            }
-        }
         public void round()
         {
             if (check_only_creator_can_use_command())
             {
-                if (game.status != play_game.statuses.answers_set)
-                {
-                    log_warning($"{strs.you_cannot_use_this_command} {strs.first_players_should_answer_to_question}", $"{strs.to_question} {strs.to_answer}");
-                    return;
-                }
-
-                if (game.play_round())
+                var winner = game.play_round();
+                if (winner!=null)
                 {
                     log_info(strs.game_played);
                 }
@@ -742,37 +419,24 @@ namespace vk10pvbot
         {
             if (check_only_creator_or_man_can_use_command())
             {
-                if (this.game.status != play_game.statuses.new_round)
+                if (!string.IsNullOrWhiteSpace(this.body))
                 {
-                    log_warning(strs.you_cannot_use_this_command, "Сначала /players /round");
-                    return;
+                    game.add_question(this.body);
+                    log_info($"{strs.question_added} {this.body}");
                 }
-                game.add_question(this.body);
-                log_info($"{strs.question_added} {this.body}");
             }
         }
         public void add_answer()
         {
-            if (this.game.status != play_game.statuses.question_set && this.game.status != play_game.statuses.answers_set)
+            var player = game.add_answer(this.message.UserId.Value, this.body);
+            if (player!=null)
             {
-                log_warning(strs.you_cannot_use_this_command, "Сначала /q /a");
-                return;
-            }
-            var player = game.player(this.message.UserId);
-            if (player == null)
-            {
-                log_warning($"{strs.this_is_not_player} [{this.message.UserId}]", "");
-                return;
-            }
-            var a = str.Replace("/a ", "").Trim();
-            if (game.add_answer(player, a))
-            {
-                log_info($"{strs.answer_added} [{player.userid}, {player.nick}] {a}");
+                log_info($"{strs.answer_added} [{player.userid}, {player.nick}]");
                 return;
             }
             else
             {
-                log_warning(strs.not_play_in_round, "");
+                log_warning($"{strs.this_is_not_player} [{this.message.UserId}]", "");
                 return;
             }
         }
@@ -780,93 +444,76 @@ namespace vk10pvbot
         {
             if (check_only_creator_can_use_command())
             {
-                if (game.status != play_game.statuses.answers_set)
-                {
-                    log_warning(strs.you_cannot_use_this_command, strs.first_players_should_answer_to_question);
-                    return;
-                }
                 var s = new StringBuilder();
-                foreach (var pa in game.game.round.players_answers)
+                foreach (var player in game.players())
                 {
-                    s.AppendLine(pa.player.id + ". " + pa.answer);
+                    s.AppendLine(player.id + ". " + player.answer);
                 }
-                connector.send_message(s.ToString(), game.game.man.userid);
+                connector.send_message(s.ToString(), game.man().userid);
                 log_info(strs.answers_sent_to_man);
             }
         }
 
-        public void kill()
-        {
-            kill_rose(x => game.kill(x));
-
-        }
-        public void rose()
-        {
-            kill_rose(x => game.rose(x));
-        }
-
-        private void kill_rose(Action<List<int>> action)
+        public void unkill()
         {
             if (check_only_creator_or_man_can_use_command())
             {
-                if (this.game.status != play_game.statuses.answers_set)
+                game.unkill(ids_from_body());
+                log_info("Игроки воскрешены");
+            }
+        }
+        public void kill()
+        {
+            if (check_only_creator_or_man_can_use_command())
+            {
+                game.kill(ids_from_body());
+                log_info("Убиты игроки");
+            }
+        }
+        public void rose()
+        {
+            if (check_only_creator_or_man_can_use_command())
+            {
+                game.rose(ids_from_body());
+                log_info("Подарена роза");
+
+            }
+        }
+
+        private List<int> ids_from_body()
+        {
+            var list = new List<int>();
+            var ids = new Regex("[ ]{2,}", RegexOptions.None).Replace(this.body, " ").Split(' ');
+            if (ids == null || ids.Length == 0)
+            {
+                return list;
+            }
+            foreach (var item in ids)
+            {
+                int id;
+                if (int.TryParse(item, out id))
                 {
-                    log_warning(strs.you_cannot_use_this_command, "Сначала /a");
-                    return;
-                }
-                var ids = new Regex("[ ]{2,}", RegexOptions.None).Replace(this.body, " ").Split(' ');
-                if (ids == null || ids.Length == 0)
-                {
-                    log_warning(strs.not_correct_used_of_command, command + " 1 2 3 4 5");
-                    return;
-                }
-                var list = new List<int>();
-                foreach (var item in ids)
-                {
-                    int id;
-                    if (!int.TryParse(item, out id))
-                    {
-                        log_warning(strs.not_correct_used_of_command, command + " 1 2 3 4 5");
-                        return;
-                    }
                     list.Add(id);
                 }
-                if (list.Count > 0)
-                {
-                    action.Invoke(list);
-                    var sb = new StringBuilder("Игрокам выставлен статус." + $" {command}. ");
-                    foreach (var item in list)
-                    {
-                        sb.Append(item.ToString() + " ");
-                    }
-                    log_info(sb.ToString());
-                }
             }
+
+            return list;
         }
 
         public void status()
         {
             if (check_only_creator_or_man_or_players_can_use_command())
             {
-                log_info(game.status.ToString());
-                if (this.game.game!=null&&this.game.game.man != null && this.message.UserId == this.game.game.man.id)
-                {
-                    return;
-                }
 
                 var sb = new StringBuilder();
-                if (game.status == play_game.statuses.none)
-                {
-                    sb.AppendLine(strs.game_not_initialized);
-                }
-                else {
+              
                     print_winner(sb);
                     print_man(sb);
                     print_players(sb);
-                    print_pas(sb);
                     print_q(sb);
-                }
-            
+                log_info(sb.ToString());
+
+
                 if (this.message.ChatId == null)
                 {
                     this.connector.send_message(sb.ToString(), this.message.UserId.Value);
@@ -879,149 +526,114 @@ namespace vk10pvbot
         }
         private void print_man(StringBuilder sb)
         {
-            if (this.game.status== play_game.statuses.answers_set 
-                || this.game.status == play_game.statuses.man_set
-                || this.game.status == play_game.statuses.new_round
-                || this.game.status == play_game.statuses.played
-                || this.game.status == play_game.statuses.question_set
-                )
-            {
-                
-            }
-            var man = game.game.man;
-            var s = @"¯\_(ツ)_/¯ . ";
+            var man = game.man();
+            var winner = game.winner();
+            var s = @"Жених: ";
             if (man == null)
             {
                 sb.AppendLine(s + "??");
             }
-            else if (game.game.winner != null ||
+            else if (winner != null ||
                 (this.message.ChatId == null && this.message.UserId.Value == this.connector.vk.UserId))
             {
                 sb.AppendLine($"{s}[{man.firstname} {man.lastname}] https://vk.com/id{man.userid}");
             }
             else
             {
-                sb.AppendLine(s + "+");
+                sb.AppendLine(s + man.firstname[0]+ "..💕");
             }
         }
         private void print_winner(StringBuilder sb)
         {
-            if (this.game.status == play_game.statuses.played)
-            {
-                var s = "♥ ";
-                if (game.game.winner != null)
-                {
-                    sb.AppendLine(s + game.game.winner.nick);
-                }
-                else
-                {
-                    sb.AppendLine(s + ".. упс, победителей нет ??.");
-                }
-            }
+            var winner = game.winner();
 
+            var s = "♥";
+            if (winner != null)
+            {
+                sb.AppendLine($"{s} {winner.nick} {s}");
+            }
         }
         private void print_players(StringBuilder sb)
         {
-            if (this.game.status == play_game.statuses.man_set)
+            var players = game.players();
+            if (players.Count == 0)
             {
-                if (this.game.game.players.Count == 0)
+                sb.AppendLine(@"Невесты: ??");
+            }
+            else
+            {
+                var flag = string.IsNullOrWhiteSpace(this.game.question());
+                foreach (var player in players)
                 {
-                    sb.AppendLine(@"ｫｫｫ . ??");
-                }
-                else
-                {
-                    foreach (var item in this.game.game.players)
+                    var star = "•";
+                    if (!flag)
                     {
-                        sb.AppendLine(item.id + ". " + item.nick);
+                        if (!string.IsNullOrWhiteSpace(player.answer))
+                        {
+                            star = "+";
+                        }
                     }
 
+                    var kr = "";                    
+
+                    if (player.kill)
+                    {
+                        kr = "🔪";
+                    }
+                    else {
+                        if (player.rose>3)
+                        {
+                            kr = "🌹🌹🌹...";
+                        }
+                        else
+                        {
+                            for (int i = 0; i < player.rose; i++)
+                            {
+                                kr += "🌹";
+                            }
+                        }
+                    }
+                    sb.AppendLine(star + " " + player.nick+ " "+kr);
                 }
             }
         }
-        private void print_pas(StringBuilder sb)
-        {
-            if (this.game.status == play_game.statuses.answers_set
-              || this.game.status == play_game.statuses.new_round
-              || this.game.status == play_game.statuses.question_set
-              )
-            {
-                if (this.game.game.round.players_answers.Count == 0)
-                {
-                    sb.AppendLine(@"ｫｫｫ . ??");
-                }
-                else
-                {
-                    if (this.game.status == play_game.statuses.new_round)
-                    {
-                        foreach (var item in this.game.game.round.players_answers)
-                        {
-                            var kr = "";
-                            if (this.game.game.round.rose != null && this.game.game.round.rose.Any(x => x.userid == item.player.userid))
-                            {
-                                kr = "🌹";
-                            }
-                            if (this.game.game.round.kill != null && this.game.game.round.kill.Any(x => x.userid == item.player.userid))
-                            {
-                                kr = "🔪";
-                            }
-                            sb.AppendLine(item.player.id + ". " + item.player.nick + " " + kr);
-                        }
-                    }
-                    else
-                    {
-                        foreach (var item in this.game.game.round.players_answers)
-                        {
-                            var kr = "";
-                            if (!string.IsNullOrEmpty(item.answer))
-                            {
-                                kr = "☆";
-                            }
-                            sb.AppendLine(item.player.id + ". " + item.player.nick + " " + kr);
-                        }
-                    }
-                    
-                }
-            }
-        }
+ 
         private void print_q(StringBuilder sb)
         {
-            if (this.game.status == play_game.statuses.answers_set
-              || this.game.status == play_game.statuses.new_round
-              || this.game.status == play_game.statuses.question_set
-              )
-            {
-                var s = "Вопрос . ";
-                if (string.IsNullOrEmpty(this.game.game.round.question))
-                {
-                    sb.AppendLine(s+"??");
-                }
-                else
-                {
-                    sb.AppendLine(s+this.game.game.round.question);
-                }
+            var question = this.game.question();
+            var s = "Вопрос: ";
 
+            if (string.IsNullOrWhiteSpace(question))
+            {
+                    sb.AppendLine(s + "??");
+            }
+            else
+            {
+                sb.AppendLine(s + question);
             }
         }
     }
 
-        public class processor {
+    public class processor
+    {
 
         vk_connector connector;
-        public processor(vk_connector connector) {
-           this.connector = connector;
+        public processor(vk_connector connector)
+        {
+            this.connector = connector;
         }
 
-        
-      
-        public void go() {
-            var processor_commands = new processor_commands(connector);
 
+
+        public void go()
+        {
+            var vk_commands = new vk_commands(connector);
             var cm = new command_messsage(connector);
             while (true)
             {
                 try
                 {
-                    var commands = processor_commands.go();
+                    var commands = vk_commands.commands();
                     if (commands.Count > 0)
                     {
                         foreach (var item in commands)
@@ -1031,24 +643,14 @@ namespace vk10pvbot
                             {
                                 cm.new_game();
                             }
-                            else if (cm.check(strc.stop))
+                            else if (cm.check(strc.man))
                             {
-                                cm.stop_game();
-                            }
-                            else if (cm.check(strc.man)) {
                                 cm.add_man();
                             }
-                            else if (cm.check(strc.add))
+                            else if (cm.check(strc.add) )
+                               
                             {
                                 cm.add_player();
-                            }
-                            else if (cm.check(strc.players))
-                            {
-                                cm.players();
-                            }
-                            else if (cm.check(strc.round))
-                            {
-                                cm.round();
                             }
                             else if (cm.check(strc.q))
                             {
@@ -1058,6 +660,8 @@ namespace vk10pvbot
                             {
                                 cm.add_answer();
                             }
+                            
+                            
                             else if (cm.check(strc.send_answers_to_man))
                             {
                                 cm.send_answers_to_man();
@@ -1069,6 +673,10 @@ namespace vk10pvbot
                             else if (cm.check(strc.rose))
                             {
                                 cm.rose();
+                            }
+                            else if (cm.check(strc.round))
+                            {
+                                cm.round();
                             }
                             else if (cm.check(strc.status))
                             {
@@ -1087,13 +695,13 @@ namespace vk10pvbot
             }
         }
 
-       
+
     }
 
     class Program
     {
         static void test_proof_of_game() {
-            var flag = false;
+            player flag = null;
             var man = new player { userid = 100 };
             var player1 = new player { userid = 201 };
             var player2 = new player { userid = 202 };
@@ -1106,7 +714,6 @@ namespace vk10pvbot
             var player9 = new player { userid = 209 };
 
             var play = new play_game();
-            play.new_game();
             play.add_man(man);
             play.add_player(player1);
             play.add_player(player2);
@@ -1117,14 +724,13 @@ namespace vk10pvbot
             play.add_player(player7);
             play.add_player(player8);
             play.add_player(player9);
-            play.players_set();
 
             play.add_question("вопрос 1");
-            play.add_answer(player1, "1 ответ 1");
-            play.add_answer(player2, "2 ответ 1");
-            play.add_answer(player3, "3 ответ 1");
-            play.add_answer(player4, "4 ответ 1");
-            play.add_answer(player5, "5 ответ 1");
+            play.add_answer(player1.userid, "1 ответ 1");
+            play.add_answer(player2.userid, "2 ответ 1");
+            play.add_answer(player3.userid, "3 ответ 1");
+            play.add_answer(player4.userid, "4 ответ 1");
+            play.add_answer(player5.userid, "5 ответ 1");
 
             play.kill(new List<int>() { player1.id, player2.id });
             play.rose(new List<int>() { player3.id, player4.id });
@@ -1132,9 +738,9 @@ namespace vk10pvbot
            flag= play.play_round();
 
             play.add_question("вопрос 2");
-            play.add_answer(player3, "1 ответ 1");
-            play.add_answer(player4, "2 ответ 1");
-            play.add_answer(player5, "3 ответ 1");
+            play.add_answer(player3.userid, "1 ответ 1");
+            play.add_answer(player4.userid, "2 ответ 1");
+            play.add_answer(player5.userid, "3 ответ 1");
 
             play.kill(new List<int>() { player3.id, player4.id });
             play.rose(new List<int>() { player5.id });
@@ -1193,6 +799,7 @@ namespace vk10pvbot
                 goto error;
             }
 
+            log.info_command("","Теперь можно написать себе в вк в лс комманду /status.");
             var processor = new processor(connector);
             processor.go();
 
